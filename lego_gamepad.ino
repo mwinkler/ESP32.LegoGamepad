@@ -1,36 +1,55 @@
-#include <Adafruit_ST77xx.h>
-#include <Adafruit_ST7789.h>
+//#include <Adafruit_ST77xx.h>
+//#include <Adafruit_ST7789.h>
 #include <Adafruit_ST7735.h>
-#include <gfxfont.h>
-#include <Adafruit_SPITFT_Macros.h>
-#include <Adafruit_SPITFT.h>
-#include <Adafruit_GrayOLED.h>
+//#include <gfxfont.h>
+//#include <Adafruit_SPITFT_Macros.h>
+//#include <Adafruit_SPITFT.h>
+//#include <Adafruit_GrayOLED.h>
 #include <Adafruit_GFX.h>
-#include <NimBLEDevice.h>
-#include <PowerFunctions.h>
-//#include <Lpf2HubEmulation.h>
-#include <Lpf2HubConst.h>
-#include <Lpf2Hub.h>
-#include <LegoinoCommon.h>
-#include <Boost.h>
 
-int PIN_IRLED = 32;
-int PIN_JOY1_X = 39;
-int PIN_JOY1_Y = 34;
-int PIN_TRIGGER_R = 36;
-int PIN_TRIGGER_L = 35;
+#include <PowerFunctions.h>
+
+//#include <NimBLEDevice.h>
+//#include <Lpf2HubEmulation.h>
+//#include <Lpf2HubConst.h>
+//#include <Lpf2Hub.h>
+//#include <LegoinoCommon.h>
+//#include <Boost.h>
+
+#define TFT_DC 22 //A0
+#define TFT_CS 5 //CS
+#define TFT_MOSI 23 //SDA
+#define TFT_CLK 18 //SCK
+//#define TFT_RST 0 
+
+#define PIN_IRLED 32
+#define PIN_JOY1_X 39
+#define PIN_JOY1_Y 34
+#define PIN_TRIGGER_R 36
+#define PIN_TRIGGER_L 35
+
+Adafruit_ST77xx tft = Adafruit_ST77xx(128, 128, TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK);
+//Adafruit_ST77xx tft = Adafruit_ST77xx(128, 128, new SPIClass(VSPI), TFT_CS, TFT_DC);
 PowerFunctions powerFunctions(PIN_IRLED, 0); //Pin 12, Channel 0
 
-// The setup() function runs once each time the micro-controller starts
+int counter;
+
 void setup()
 {
-	//pinMode(IrLed, OUTPUT);
-	Serial.begin(115200);
-    //pinMode(PIN_JOY1_X, INPUT);
-    //analogReadResolution(4);
+	//Serial.begin(115200);
+
+    tft.initSPI();
+    
+    
+    tft.setTextColor(ST77XX_WHITE);
+    tft.setTextSize(2);
+    
+    tft.setRotation(3);
+    tft.fillScreen(ST77XX_BLACK);
+    tft.setCursor(5, 5);
+    tft.println("Hello");
 }
 
-// Add the main program code into the continuous loop() function
 void loop()
 {
     int joy_x_value = map(analogRead(PIN_JOY1_Y), 0, 4096, -110, 110) + 9;
@@ -52,15 +71,4 @@ void loop()
     powerFunctions.single_pwm(PowerFunctionsPort::RED, powerFunctions.speedToPwm(trigger_r_value));
 
     delay(100);
-
-    /*for (int i = 0; i < 110; i += 10)
-    {
-        PowerFunctionsPwm pwm = powerFunctions.speedToPwm(i);
-        powerFunctions.single_pwm(PowerFunctionsPort::BLUE, pwm);
-        Serial.print("single_pwm | speed: ");
-        Serial.print(i);
-        Serial.print(" pwm: ");
-        Serial.println((uint8_t)pwm, HEX);
-        delay(1000);
-    }*/
 }
