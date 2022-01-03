@@ -250,11 +250,11 @@ void bw_update(int speed, int steer)
         return;
     }
 
-    buwizz_data[1] = speed;
-    buwizz_data[2] = speed;
-    buwizz_data[3] = speed;
-    buwizz_data[4] = speed;
-    buwizz_data[5] = speed;
+    //buwizz_data[1] = speed;
+    //buwizz_data[2] = speed;
+    //buwizz_data[3] = speed;
+    //buwizz_data[4] = speed;
+    buwizz_data[5] = steer;
     buwizz_data[6] = speed;
     //valueselect[7] = speed;
 
