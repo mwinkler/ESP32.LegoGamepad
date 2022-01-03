@@ -44,17 +44,13 @@ byte portC = (byte)ControlPlusHubPort::C;
 byte portD = (byte)ControlPlusHubPort::D;
 
 
-// ----- ble/buwizz 
-static BLEUUID serviceUUID("500592d1-74fb-4481-88b3-9919b1676e93"); //Service UUID of BuWizz 3
-static BLEUUID charUUID("50052901-74fb-4481-88b3-9919b1676e93"); //Characteristic  UUID of BuWizz control
-static BLERemoteCharacteristic* pRemoteCharacteristic;
-BLEScan* pBLEScan; //Name the scanning device as pBLEScan
-BLEScanResults foundDevices;
-static BLEAddress* Server_BLE_Address;
-String Scaned_BLE_Address;
-uint8_t valueselect[] = { 0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 }; //BuWizz "payload" to control the outputs.
-boolean buwizz_paired = false; //boolean variable to toggel pairing
-boolean buwizz_notfound = true;
+// ----- ble/buwizz
+static std::string buwizz_deviceName = "BuWizz3";
+static NimBLEUUID buwizz_serviceUUID("500592d1-74fb-4481-88b3-9919b1676e93"); //Service UUID of BuWizz 3
+static NimBLEUUID buwizz_charUUID("50052901-74fb-4481-88b3-9919b1676e93"); //Characteristic  UUID of BuWizz control
+static NimBLERemoteCharacteristic* buwizz_remoteCharacteristic;
+uint8_t buwizz_data[] = { 0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 }; //BuWizz "payload" to control the outputs.
+boolean buwizz_connected = false; //boolean variable to toggel pairing
 
 
 // ---- application
@@ -92,7 +88,7 @@ void loop()
 
     ui_render(steer, speed);
 
-    delay(100);
+    delay(50);
 }
 
 
@@ -195,107 +191,73 @@ void ui_renderBarBox(int x, int y, int w, int h, int value, uint16_t color, bool
 }
 
 
-bool connectToserver(BLEAddress pAddress) 
-{
-    BLEClient* pClient = BLEDevice::createClient();
-    
-    boolean connection_ok = false;
-    
-    while (!connection_ok) 
-    {
-        Serial.println("Connecting to BuWizz...");
-        
-        if (pClient->connect(BLEAddress(pAddress)))
-        {
-            connection_ok = true;
-            
-            Serial.println("Connected to BuWizz");
-        }
-        else
-            return false;
-    }
-
-    BLERemoteService* pRemoteService = pClient->getService(serviceUUID);     // Obtain a reference to the service we are after in the remote BLE server.
-    
-    if (pRemoteService != nullptr)
-    {
-        Serial.println(" - Found the service");
-    }
-    else
-    {
-        pClient->disconnect();
-        return false;
-    }
-
-    pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);     // Obtain a reference to the characteristic in the service of the remote BLE server.
-    
-    if (pRemoteCharacteristic != nullptr)
-    {
-        Serial.println(" - Found the characteristic");
-        buwizz_paired = true;
-        return true;
-    }
-    else
-    {
-        pClient->disconnect();
-        return false;
-    }
-}
-
-class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
-{
-    void onResult(NimBLEAdvertisedDevice* advertisedDevice)
-    {
-        Serial.printf("Scan Result: %s \n", advertisedDevice->toString().c_str());
-
-        if (advertisedDevice->getName() == "BuWizz3") 
-        {
-            Serial.println("BuWizz found! MAC address:");
-            advertisedDevice->getScan()->stop();
-            buwizz_notfound = false;
-            Server_BLE_Address = new BLEAddress(advertisedDevice->getAddress());
-            Scaned_BLE_Address = Server_BLE_Address->toString().c_str();
-            Serial.println(Scaned_BLE_Address);
-        }
-    }
-};
-
 void bw_init()
 {
-    BLEDevice::init("");
-    pBLEScan = BLEDevice::getScan(); //create new scan
-    pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks()); //Call the class that is defined above 
-    pBLEScan->setActiveScan(false); //active scan uses more power, but get results faster
+    NimBLEDevice::init("");
 
-    while (buwizz_notfound == true) 
+    NimBLEScan* pScan = NimBLEDevice::getScan();
+    NimBLEScanResults results = pScan->start(5);
+
+    for (int i = 0; i < results.getCount(); i++) 
     {
-        pBLEScan->start(3);
-    }
+        NimBLEAdvertisedDevice device = results.getDevice(i);
 
-    while (connectToserver(*Server_BLE_Address) != true) 
-    {
-        Serial.println("Tikk-Takk.. waiting..");
-        delay(5000);
-    }
+        //Serial.println(device.toString().c_str());
 
-    //pRemoteCharacteristic->writeValue((uint8_t*)modeselect, 2, true);
+        if (device.getName() == buwizz_deviceName)
+        {
+            NimBLEClient* pClient = NimBLEDevice::createClient();
+
+            if (pClient->connect(&device)) 
+            {
+                NimBLERemoteService* pService = pClient->getService(buwizz_serviceUUID);
+
+                if (pService != nullptr) 
+                {
+                    buwizz_remoteCharacteristic = pService->getCharacteristic(buwizz_charUUID);
+
+                    if (buwizz_remoteCharacteristic != nullptr)
+                    {
+                        Serial.println("BuWizz connected");
+                        buwizz_connected = true;
+                        return;
+                    }
+                }
+                else
+                {
+                    pClient->disconnect();
+                }
+            }
+            else 
+            {
+                // failed to connect
+                Serial.println("BuWizz connection faild");
+            }
+
+            //NimBLEDevice::deleteClient(pClient);
+        }
+        else
+        {
+            Serial.println("No BuWizz device");
+        }
+    }
 }
 
 void bw_update(int speed, int steer)
 {
-    if (buwizz_paired == false)
+    if (buwizz_connected == false)
     {
         return;
     }
 
-    valueselect[1] = speed;
-    valueselect[2] = speed;
-    valueselect[3] = speed;
-    valueselect[4] = speed;
-    valueselect[5] = speed;
-    valueselect[6] = speed;
+    buwizz_data[1] = speed;
+    buwizz_data[2] = speed;
+    buwizz_data[3] = speed;
+    buwizz_data[4] = speed;
+    buwizz_data[5] = speed;
+    buwizz_data[6] = speed;
     //valueselect[7] = speed;
 
 
-    pRemoteCharacteristic->writeValue((uint8_t*)valueselect, 9, true);
+    buwizz_remoteCharacteristic->writeValue((uint8_t*)buwizz_data, 9, true);
 }
