@@ -1,22 +1,22 @@
-//#include <Adafruit_ST7789.h>
-#include <Adafruit_ST7735.h>
-//#include <Adafruit_ST77xx.h>
-//#include <gfxfont.h>
-//#include <Adafruit_SPITFT_Macros.h>
-//#include <Adafruit_SPITFT.h>
-//#include <Adafruit_GrayOLED.h>
-#include <Adafruit_GFX.h>
+
 #include <SPI.h>
-
-
-//#include <NimBLEDevice.h>
+#include <NimBLEDevice.h>
 //#include <Lpf2HubEmulation.h>
 //#include <Lpf2HubConst.h>
-#include <Lpf2Hub.h>
 //#include <LegoinoCommon.h>
-//#include <Boost.h>
+//#include <BLEDevice.h>
 
-#include <BLEDevice.h>
+
+// ----- input
+#define PIN_JOY1_X 39
+#define PIN_JOY1_Y 34
+#define PIN_TRIGGER_R 36
+#define PIN_TRIGGER_L 35
+
+
+// ----- TFT
+#include <Adafruit_ST7735.h>
+#include <Adafruit_GFX.h>
 
 #define TFT_DC 22 //A0
 #define TFT_CS 5 //CS
@@ -24,43 +24,41 @@
 #define TFT_MOSI 23 //SDA
 #define TFT_CLK 18 //SCK
 
-#define PIN_IRLED 32
-#define PIN_JOY1_X 39
-#define PIN_JOY1_Y 34
-#define PIN_TRIGGER_R 36
-#define PIN_TRIGGER_L 35
-
-// ----- TFT
 //Adafruit_ST77xx tft = Adafruit_ST77xx(128, 128, TFT_CS, TFT_DC, TFT_MOSI, TFT_CLK);
 //Adafruit_ST77xx tft = Adafruit_ST77xx(128, 128, new SPIClass(VSPI), TFT_CS, TFT_DC);
 Adafruit_ST7735 tft = Adafruit_ST7735(TFT_CS, TFT_DC, TFT_RST);
 
+
 // ---- PF
 #include <PowerFunctions.h>
+#define PIN_IRLED 32
 PowerFunctions powerFunctions(PIN_IRLED, 0); //Pin 12, Channel 0
 
+
 // ----- PU hub
+#include <Lpf2Hub.h>
 Lpf2Hub myHub;
 byte portA = (byte)ControlPlusHubPort::A;
 byte portB = (byte)ControlPlusHubPort::B;
 byte portC = (byte)ControlPlusHubPort::C;
 byte portD = (byte)ControlPlusHubPort::D;
 
-int counter;
 
 // ----- ble/buwizz 
 static BLEUUID serviceUUID("500592d1-74fb-4481-88b3-9919b1676e93"); //Service UUID of BuWizz 3
-static BLEUUID charUUID(BLEUUID((uint16_t)0x9201)); //Characteristic  UUID of BuWizz control
+static BLEUUID charUUID("50052901-74fb-4481-88b3-9919b1676e93"); //Characteristic  UUID of BuWizz control
 static BLERemoteCharacteristic* pRemoteCharacteristic;
 BLEScan* pBLEScan; //Name the scanning device as pBLEScan
 BLEScanResults foundDevices;
 static BLEAddress* Server_BLE_Address;
 String Scaned_BLE_Address;
-uint8_t valueselect[] = { 0x10,0x00,0x00,0x00,0x00,0x00 }; //BuWizz "payload" to control the outputs.
-uint8_t modeselect[] = { 0x11,0x02 }; //BuWizz mode select. 0x01: slow, 0x02: normal, 0x03: fast, 0x04: ludicous
+uint8_t valueselect[] = { 0x30,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00 }; //BuWizz "payload" to control the outputs.
 boolean buwizz_paired = false; //boolean variable to toggel pairing
+boolean buwizz_notfound = true;
 
 
+// ---- application
+int counter;
 
 
 void setup()
@@ -70,14 +68,12 @@ void setup()
     ui_init();
 
     //pu_init();
-
-
-    BLEDevice::init("");
+    bw_init();
 }
 
 void loop()
 {
-    pu_connect();
+    //pu_check_connection();
 
     // read input
     int joy_x_raw = analogRead(PIN_JOY1_Y);
@@ -90,8 +86,9 @@ void loop()
 	int speed = (trigger_r_value - trigger_l_value);
 
     
-    pf_update(speed, steer);
-    pu_update(speed, steer);
+    //pf_update(speed, steer);
+    //pu_update(speed, steer);
+    bw_update(speed, steer);
 
     ui_render(steer, speed);
 
@@ -104,14 +101,18 @@ void pu_init()
     myHub.init();
 }
 
-void pu_connect()
+void pu_check_connection()
 {
-    if (myHub.isConnecting()) {
+    if (myHub.isConnecting()) 
+    {
         myHub.connectHub();
-        if (myHub.isConnected()) {
+
+        if (myHub.isConnected()) 
+        {
             Serial.println("We are now connected to the HUB");
         }
-        else {
+        else 
+        {
             Serial.println("We have failed to connect to the HUB");
         }
     }
@@ -128,7 +129,6 @@ void pu_update(int speed, int steer)
 }
 
 
-
 void pf_update(int speed, int steer)
 {
     if (steer < -5 || steer > 5)
@@ -143,7 +143,6 @@ void pf_update(int speed, int steer)
 
     powerFunctions.single_pwm(PowerFunctionsPort::RED, powerFunctions.speedToPwm(speed));
 }
-
 
 
 void ui_init()
@@ -196,54 +195,107 @@ void ui_renderBarBox(int x, int y, int w, int h, int value, uint16_t color, bool
 }
 
 
-
 bool connectToserver(BLEAddress pAddress) 
 {
     BLEClient* pClient = BLEDevice::createClient();
+    
     boolean connection_ok = false;
-    while (!connection_ok) {
+    
+    while (!connection_ok) 
+    {
         Serial.println("Connecting to BuWizz...");
-        pClient->connect(BLEAddress(pAddress));
-        if (pClient->isConnected()) {
+        
+        if (pClient->connect(BLEAddress(pAddress)))
+        {
             connection_ok = true;
-            buwizz_paired = true;
+            
             Serial.println("Connected to BuWizz");
         }
+        else
+            return false;
     }
 
-
     BLERemoteService* pRemoteService = pClient->getService(serviceUUID);     // Obtain a reference to the service we are after in the remote BLE server.
+    
     if (pRemoteService != nullptr)
     {
         Serial.println(" - Found the service");
     }
     else
+    {
+        pClient->disconnect();
         return false;
+    }
 
     pRemoteCharacteristic = pRemoteService->getCharacteristic(charUUID);     // Obtain a reference to the characteristic in the service of the remote BLE server.
+    
     if (pRemoteCharacteristic != nullptr)
     {
         Serial.println(" - Found the characteristic");
+        buwizz_paired = true;
         return true;
     }
     else
+    {
+        pClient->disconnect();
         return false;
+    }
 }
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 {
-    void onResult(BLEAdvertisedDevice advertisedDevice) 
+    void onResult(NimBLEAdvertisedDevice* advertisedDevice)
     {
-        Serial.printf("Scan Result: %s \n", advertisedDevice.toString().c_str());
+        Serial.printf("Scan Result: %s \n", advertisedDevice->toString().c_str());
 
-        if (advertisedDevice.getName() == "BuWizz") 
+        if (advertisedDevice->getName() == "BuWizz3") 
         {
             Serial.println("BuWizz found! MAC address:");
-            advertisedDevice.getScan()->stop();
-            //notfound = false;
-            Server_BLE_Address = new BLEAddress(advertisedDevice.getAddress());
+            advertisedDevice->getScan()->stop();
+            buwizz_notfound = false;
+            Server_BLE_Address = new BLEAddress(advertisedDevice->getAddress());
             Scaned_BLE_Address = Server_BLE_Address->toString().c_str();
             Serial.println(Scaned_BLE_Address);
         }
     }
 };
+
+void bw_init()
+{
+    BLEDevice::init("");
+    pBLEScan = BLEDevice::getScan(); //create new scan
+    pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks()); //Call the class that is defined above 
+    pBLEScan->setActiveScan(false); //active scan uses more power, but get results faster
+
+    while (buwizz_notfound == true) 
+    {
+        pBLEScan->start(3);
+    }
+
+    while (connectToserver(*Server_BLE_Address) != true) 
+    {
+        Serial.println("Tikk-Takk.. waiting..");
+        delay(5000);
+    }
+
+    //pRemoteCharacteristic->writeValue((uint8_t*)modeselect, 2, true);
+}
+
+void bw_update(int speed, int steer)
+{
+    if (buwizz_paired == false)
+    {
+        return;
+    }
+
+    valueselect[1] = speed;
+    valueselect[2] = speed;
+    valueselect[3] = speed;
+    valueselect[4] = speed;
+    valueselect[5] = speed;
+    valueselect[6] = speed;
+    //valueselect[7] = speed;
+
+
+    pRemoteCharacteristic->writeValue((uint8_t*)valueselect, 9, true);
+}
