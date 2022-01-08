@@ -78,9 +78,12 @@ void loop()
     int trigger_r_value = min(max(map(trigger_r_raw, 300, 2500, 100, 0), 0l), 100l);
 	int trigger_l_raw = analogRead(PIN_TRIGGER_L);
 	int trigger_l_value = min(max(map(trigger_l_raw, 300, 2500, 0, 100), 0l), 100l);
-    int steer = min(100, max(-100, joy_x_value)) * -1;
-	int speed = (trigger_r_value - trigger_l_value);
 
+    // steer (1.0 left, -1.0 right), speed (1.0 right 100%, -1.0 left 100%)
+    float steer = min(100, max(-100, joy_x_value)) * -1 / 100.0;
+	float speed = (trigger_r_value - trigger_l_value) / 100.0;
+
+    //Serial.printf("\nsteer: %f, speed: %f ", steer, speed);
     
     //pf_update(speed, steer);
     //pu_update(speed, steer);
@@ -156,7 +159,7 @@ void ui_init()
     //tft.drawRGBBitmap(0, 0, *epd_bitmap_allArray, 128, 128);
 }
 
-void ui_render(int steer, int power)
+void ui_render(float steer, float power)
 {
     /*tft.setCursor(5, 5);
     tft.print(joy_x_value);
@@ -172,8 +175,8 @@ void ui_render(int steer, int power)
     tft.print(speed);
     tft.print("      ");*/
 
-    ui_renderBarBox(3, 3, 100, 9, steer, ST7735_GREEN, true);
-    ui_renderBarBox(115, 3, 9, 120, power, ST7735_BLUE, false);
+    ui_renderBarBox(3, 3, 100, 9, steer * 100, ST7735_GREEN, true);
+    ui_renderBarBox(115, 3, 9, 120, power * 100, ST7735_BLUE, false);
 }
 
 void ui_renderBarBox(int x, int y, int w, int h, int value, uint16_t color, bool horizontal)
@@ -243,7 +246,7 @@ void bw_init()
     }
 }
 
-void bw_update(int speed, int steer)
+void bw_update(float speed, float steer)
 {
     if (buwizz_connected == false)
     {
@@ -254,8 +257,8 @@ void bw_update(int speed, int steer)
     //buwizz_data[2] = speed;
     //buwizz_data[3] = speed;
     //buwizz_data[4] = speed;
-    buwizz_data[5] = steer;
-    buwizz_data[6] = speed;
+    buwizz_data[5] = steer * 127;
+    buwizz_data[6] = speed * 127;
     //valueselect[7] = speed;
 
 
