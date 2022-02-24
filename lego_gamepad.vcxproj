@@ -115,7 +115,7 @@
   </ImportGroup>
   <ProjectExtensions>
     <VisualStudio>
-      <UserProperties arduino.upload.port="COM7" config.Debug.customdebug_esp32_esp32_debugger_type="universal" custom_esp32_esp32_UploadSpeed="512000" />
+      <UserProperties arduino.upload.port="COM9" config.Debug.customdebug_esp32_esp32_debugger_type="universal" custom_esp32_esp32_UploadSpeed="512000" />
     </VisualStudio>
   </ProjectExtensions>
 </Project>

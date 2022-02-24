@@ -80,7 +80,7 @@ void loop()
 	int trigger_l_value = min(max(map(trigger_l_raw, 300, 2500, 0, 100), 0l), 100l);
 
     // steer (1.0 left, -1.0 right), speed (1.0 right 100%, -1.0 left 100%)
-    float steer = min(100, max(-100, joy_x_value)) * -1 / 100.0;
+    float steer = min(100, max(-100, joy_x_value)) * 1 / 100.0;
 	float speed = (trigger_r_value - trigger_l_value) / 100.0;
 
     //Serial.printf("\nsteer: %f, speed: %f ", steer, speed);
